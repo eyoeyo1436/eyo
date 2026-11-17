@@ -1,0 +1,4 @@
+*.wav
+still_*.png
+__pycache__/
+x.mp4
