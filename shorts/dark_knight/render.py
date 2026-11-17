@@ -125,8 +125,36 @@ def glow_text(im, y, s, f, fill, radius=18, strength=1.6, x=None):
 
 
 # ------------------------------------------------------------ scene pieces
-def card(t0, t):
-    """A generic joker playing card spinning in, with a red wild-card mark."""
+def _bez(p0, p1, p2, n=24):
+    return [((1 - u) ** 2 * p0[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0],
+             (1 - u) ** 2 * p0[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1]) for u in np.linspace(0, 1, n)]
+
+
+def draw_jester(d, cx):
+    """Classic playing-card court jester silhouette: three-point bell hat, scalloped ruff, shoulders."""
+    ink, bell = (18, 18, 22, 255), (*RED, 255)
+    d.ellipse([cx - 135, 455, cx + 135, 700], fill=ink)  # shoulders (clipped by card border later)
+    d.rectangle([cx - 135, 560, cx + 135, 600], fill=ink)
+    for i in range(9):  # scalloped ruff
+        x = cx - 112 + i * 28
+        d.ellipse([x - 26, 428, x + 26, 482], fill=ink, outline=(236, 232, 222, 255), width=3)
+    d.ellipse([cx - 50, 300, cx + 50, 425], fill=ink)  # head
+    # three curved hat points, each a tapered curve ending in a bell
+    tips = []
+    for (base_l, base_r, ctrl, tip) in (((cx - 55, 318), (cx - 5, 300), (cx - 120, 230), (cx - 150, 300)),
+                                        ((cx + 5, 300), (cx + 55, 318), (cx + 120, 230), (cx + 150, 300)),
+                                        ((cx - 30, 305), (cx + 30, 305), (cx - 10, 150), (cx + 70, 135))):
+        outer = _bez(base_l, (ctrl[0] - 12, ctrl[1] - 14), tip)
+        inner = _bez(tip, (ctrl[0] + 14, ctrl[1] + 22), base_r)
+        d.polygon(outer + inner, fill=ink)
+        tips.append(tip)
+    d.chord([cx - 60, 280, cx + 60, 340], 180, 360, fill=ink)  # hat crown
+    for bx, by in tips:
+        d.ellipse([bx - 18, by - 18, bx + 18, by + 18], fill=bell)
+
+
+def card(t0, t, jester=False):
+    """A generic joker playing card spinning in, with a red wild-card mark (or a jester)."""
     cw, ch = 420, 600
     c = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
     d = ImageDraw.Draw(c)
@@ -134,11 +162,20 @@ def card(t0, t):
     d.rounded_rectangle([22, 22, cw - 23, ch - 23], 22, outline=(*RED, 255), width=4)
     for (px, py, an) in ((48, 70, "mm"), (cw - 48, ch - 70, "mm")):
         d.text((px, py), "J", font=font(BEBAS, 92), fill=(*RED, 255), anchor=an)
-    d.text((cw // 2, 250), "WILD", font=font(BEBAS, 150), fill=(20, 20, 24, 255), anchor="mm")
-    d.text((cw // 2, 360), "CARD", font=font(BEBAS, 110), fill=(*RED, 255), anchor="mm")
-    for i in range(5):  # scratchy red strokes
-        a = 0.4 + i * 0.5
-        d.arc([90 + i * 6, 410, 330 - i * 6, 520], 20 + i * 4, 160 - i * 4, fill=(*RED, 255), width=6)
+    if jester:
+        lay = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+        draw_jester(ImageDraw.Draw(lay), cw // 2)
+        m = Image.new("L", (cw, ch), 0)
+        ImageDraw.Draw(m).rounded_rectangle([26, 26, cw - 27, ch - 27], 20, fill=255)
+        c.paste(lay, (0, 0), Image.composite(lay.getchannel("A"), m, m).point(lambda v: v))
+        d.rounded_rectangle([22, 22, cw - 23, ch - 23], 22, outline=(*RED, 255), width=4)
+        for (px, py) in ((48, 70), (cw - 48, ch - 70)):
+            d.text((px, py), "J", font=font(BEBAS, 92), fill=(*RED, 255), anchor="mm")
+    else:
+        d.text((cw // 2, 250), "WILD", font=font(BEBAS, 150), fill=(20, 20, 24, 255), anchor="mm")
+        d.text((cw // 2, 360), "CARD", font=font(BEBAS, 110), fill=(*RED, 255), anchor="mm")
+        for i in range(5):  # scratchy red strokes
+            d.arc([90 + i * 6, 410, 330 - i * 6, 520], 20 + i * 4, 160 - i * 4, fill=(*RED, 255), width=6)
     p = ease(seg(t, t0, t0 + 0.9))
     sx = max(abs(math.cos((1 - p) * math.pi * 2.5)), 0.03)
     c = c.resize((max(int(cw * sx), 2), ch), Image.BICUBIC)
