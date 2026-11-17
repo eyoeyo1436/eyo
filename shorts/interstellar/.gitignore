@@ -1,0 +1,5 @@
+*.wav
+still_*.png
+maps/
+__pycache__/
+x.mp4
