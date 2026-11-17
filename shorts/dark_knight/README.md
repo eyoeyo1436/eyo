@@ -5,6 +5,8 @@
 - **Voice:** English narration by Kokoro TTS (open-weight, voice `am_michael`)
 - **Music:** original score: low drone, a slowly rising string note, a ticking pulse and impact hits, with rain
 
+Cover: `thumbnail.png` (1080x1920), made with `python3 thumbnail.py thumbnail.png`.
+
 No film footage, posters, logos or actor likenesses are used. Everything is drawn by `render.py`.
 
 ## Upload text
