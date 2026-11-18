@@ -5,9 +5,9 @@ the seam between them: white bold text, the word being spoken on a purple box, s
 Subtitles come from an offline speech model (sherpa-onnx Parakeet TDT, word timings).
 
 Usage:
-  python3 verticalize.py CLIP.mp4 OUT.mp4 --cam X,Y,W,H [--start S --end E] [--game-cx 960] [--cam-split 680]
+  python3 verticalize.py CLIP.mp4 OUT.mp4 (--cam X,Y,W,H | --no-cam) [--start S --end E] [--game-cx 960] [--cam-split 680]
                          [--asr-model DIR] [--words words.json] [--fix "wrong=right" ...]
-  --cam      webcam rectangle in the source frame (pixels)
+  --cam      webcam rectangle in the source frame (pixels); --no-cam: square game crop over a blurred fill
   --words    reuse a transcript json ([{w,t0,t1}], source-clip times) instead of running the speech model
   --fix      correct a misheard word in the subtitles, e.g. --fix "Medit=" (empty removes it)
 """
@@ -93,7 +93,7 @@ def render_state(path, words, active, y):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('clip'); ap.add_argument('out')
-    ap.add_argument('--cam', required=True); ap.add_argument('--start', type=float, default=0.0); ap.add_argument('--end', type=float, default=None)
+    ap.add_argument('--cam', default=None); ap.add_argument('--no-cam', action='store_true'); ap.add_argument('--start', type=float, default=0.0); ap.add_argument('--end', type=float, default=None)
     ap.add_argument('--game-cx', type=int, default=960); ap.add_argument('--cam-split', type=int, default=680)
     ap.add_argument('--asr-model', default=os.path.join(HERE, 'models', 'sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8'))
     ap.add_argument('--words', default=None); ap.add_argument('--fix', action='append', default=[])
@@ -104,7 +104,8 @@ def main():
     pj = json.loads(probe.stdout); sw, sh = pj['streams'][0]['width'], pj['streams'][0]['height']
     end = a.end or float(pj['format']['duration'])
     sc = sw / 1920.0
-    cx, cy, cw, ch = [int(int(v) * 1.0) for v in a.cam.split(',')]
+    if not a.cam and not a.no_cam and sw > sh:
+        sys.exit('give --cam X,Y,W,H or --no-cam')
 
     words = json.load(open(a.words)) if a.words else transcribe(a.clip, a.asr_model)
     fixes = dict(f.split('=', 1) for f in a.fix)
@@ -124,7 +125,7 @@ def main():
     blank = os.path.join(work, 'blank.png')
     surf = skia.Surface(W, H); surf.getCanvas().clear(skia.ColorTRANSPARENT); surf.makeImageSnapshot().save(blank, skia.kPNG)
     events = []                                    # (t, png)
-    seam = a.cam_split + 22
+    seam = a.cam_split + 22 if a.cam else 1600
     for ci, ch_words in enumerate(chunks(sel)):
         for wi, w in enumerate(ch_words):
             p = os.path.join(work, f's_{ci:03d}_{wi}.png')
@@ -142,19 +143,34 @@ def main():
     lst += [f"file '{p_prev}'", f'duration {max(0.04, dur - t_prev):.3f}', f"file '{p_prev}'"]
     open(os.path.join(work, 'subs.txt'), 'w').write('\n'.join(lst) + '\n')
 
-    gh = H - a.cam_split
-    gw_src = int(round(W * sh / gh / 2)) * 2
-    gx = max(0, min(sw - gw_src, int(a.game_cx * sc - gw_src / 2)))
-    cam_h = int(round(cw * a.cam_split / W))
-    cam_y = cy + max(0, (ch - cam_h) // 2)
-    fc = (f"[0:v]trim={a.start}:{end},setpts=PTS-STARTPTS,fps={FPS},split[c][g];"
-          f"[c]crop={cw}:{cam_h}:{cx}:{cam_y},scale={W}:{a.cam_split}:flags=lanczos,unsharp=5:5:0.6[cam];"
-          f"[g]crop={gw_src}:{sh}:{gx}:0,scale={W}:{gh}:flags=lanczos[game];"
-          f"[cam][game]vstack,setsar=1[st];"
-          f"[1:v]fps={FPS},format=rgba[sub];[st][sub]overlay=eof_action=pass:format=auto[v];"
-          f"[0:a]atrim={a.start}:{end},asetpts=PTS-STARTPTS,loudnorm=I=-13:TP=-1.5:LRA=11,aresample=48000[a]")
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', a.clip, '-f', 'concat', '-safe', '0', '-i', os.path.join(work, 'subs.txt'),
-                    '-filter_complex', fc, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
+    head = f"[0:v]trim={a.start}:{end},setpts=PTS-STARTPTS,fps={FPS}"
+    if sh > sw:                                   # already vertical: just trim and size, keep its own subtitles
+        fc = f"{head},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v];"
+    elif a.cam:
+        cx, cy, cw, ch = [int(v) for v in a.cam.split(',')]
+        tgt = W / a.cam_split                         # webcam panel aspect
+        if cw / ch > tgt:
+            ncw = int(ch * tgt); cx, cw = cx + (cw - ncw) // 2, ncw
+        else:
+            nch = int(cw / tgt); cy, ch = cy + (ch - nch) // 2, nch
+        gh = H - a.cam_split
+        gw_src = int(round(W * sh / gh / 2)) * 2
+        gx = max(0, min(sw - gw_src, int(a.game_cx * sc - gw_src / 2)))
+        fc = (f"{head},split[c][g];"
+              f"[c]crop={cw}:{ch}:{cx}:{cy},scale={W}:{a.cam_split}:flags=lanczos,unsharp=5:5:0.6[cam];"
+              f"[g]crop={gw_src}:{sh}:{gx}:0,scale={W}:{gh}:flags=lanczos[game];"
+              f"[cam][game]vstack,setsar=1[st];")
+    else:                                         # no webcam: square game crop over a blurred fill
+        fc = (f"{head},split[b][g];"
+              f"[b]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},gblur=sigma=30,eq=brightness=-0.12[bg];"
+              f"[g]crop={sh}:{sh}:{max(0, min(sw - sh, int(a.game_cx * sc - sh / 2)))}:0,scale={W}:{W}:flags=lanczos[game];"
+              f"[bg][game]overlay=0:{(H - W) // 2 - 80},setsar=1[st];")
+    if sh <= sw:
+        fc += f"[1:v]fps={FPS},format=rgba[sub];[st][sub]overlay=eof_action=pass:format=auto[v];"
+    fc += f"[0:a]atrim={a.start}:{end},asetpts=PTS-STARTPTS,loudnorm=I=-13:TP=-1.5:LRA=11,aresample=48000[a]"
+    inputs = ['-i', a.clip] + (['-f', 'concat', '-safe', '0', '-i', os.path.join(work, 'subs.txt')] if sh <= sw else [])
+    subprocess.run(['ffmpeg', '-v', 'error', '-y'] + inputs + [
+                    '-filter_complex', fc, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
                     '-pix_fmt', 'yuv420p', '-r', str(FPS), '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', f'{dur:.3f}', a.out], check=True)
     print('subtitles:', ' '.join(f"[{w['t0']:.1f}]{display(w['w'])}" for w in sel))
     print('wrote', a.out)

@@ -24,6 +24,25 @@ Klibin kendi altyazıları, görüntüsü ve kurgusu aynen kalır.
 
 Çıktı: 1080x1920, 60 fps, H.264 + AAC 48 kHz. Hook sesi klipten biraz yüksek ayarlanır (~ −11,5 LUFS).
 
+## En kolay yol: tek komut (`auto.py`)
+```bash
+python3 auto.py --list                          # bugünün en çok izlenen İngilizce GTA 6 klipleri
+python3 auto.py https://clips.twitch.tv/...     # klibi indir → hazır Shorts (../gta6_clips/)
+python3 auto.py URL --plan                      # önce sadece planı göster (kamera, kesit, hook, döküm)
+```
+`auto.py` şunları otomatik yapar:
+- klibi indirir;
+- konuşmayı yazıya döker;
+- yayıncının kamerasını yüzünden bulur;
+- uzun kliplerde en hareketli ~38 saniyeyi seçer;
+- klipteki kelimelere göre hook yazar ("xQc vs GTA 6 police!" gibi);
+- ünlü harfsiz isimleri ("xQc" gibi) harf harf okutur;
+- videoyu üretir.
+
+Her şey `cache/` klasöründe saklanır, aynı klip ikinci kez işlenmez. Her ayar elle değiştirilebilir: `--hook`, `--start/--end`, `--cam`, `--name`, `--badge-y`. Klip başına ~4–6 dakika sürer (4 CPU çekirdeği).
+
+Ücretli hiçbir servis kullanılmaz (Higgsfield/vidIQ yok). Ses ve konuşma tanıma modelleri `models/` klasöründe; yoksa ilk çalıştırmada GitHub'dan indirilir.
+
 ## Yatay (ham Twitch) klipler için önce dikey düzen
 Bana gönderilen jasontheween klibi zaten dikeydi (üstte kamera, altta oyun, altyazılı). Ham Twitch klipleri yataydır; onları önce `verticalize.py` aynı düzene getirir:
 - Yayıncı kamerası üstte, oyun altta (ortadan kırpılmış).
@@ -57,6 +76,7 @@ python3 make_short.py KLIP.mp4 CIKTI.mp4 --name jasontheween --hook "GTA 6 heist
 Dikey olmayan klipler 9:16'ya kırpılarak doldurulur. Render 4 CPU çekirdeğinde ~2,5 dakika sürer.
 
 ## Dosyalar
+- `auto.py`: tek komutla URL'den hazır videoya (indirme, döküm, kamera bulma, kesit, hook)
 - `verticalize.py`: yatay klibi dikey düzene getirir ve altyazı ekler
 - `make_short.py`: şablonun tamamı (ses, yazı ve etiket animasyonu, kapanış, efektler, kodlama)
 - `assets/twitch_logo.png`: Twitch logosu
@@ -66,5 +86,5 @@ Dikey olmayan klipler 9:16'ya kırpılarak doldurulur. Render 4 CPU çekirdeğin
 ## Gerekenler
 Python 3, ffmpeg ve şu paketler:
 ```bash
-pip install skia-python kokoro-onnx soundfile scipy numpy sherpa-onnx
+pip install skia-python kokoro-onnx soundfile scipy numpy sherpa-onnx yt-dlp "opencv-python-headless<5"
 ```
