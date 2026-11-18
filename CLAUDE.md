@@ -19,6 +19,7 @@ These rules exist because the user asked to spend as few credits as possible.
 - Run a build once. Do not re-run it to "check". The DONE line already reports size and loudness.
 - Skip clips with nudity. Watch for titles or transcripts mentioning strip clubs or showers; YouTube restricts them.
 - Do not read the scripts unless something fails. Keep replies to a few lines.
+- Thumbnails: `python3 thumbnail.py cache/<slug>/clip.mp4 OUT --t <moment> --cx <x> --cam 0,0,367,293 --name <login> --text "LINE|GTA 6|LAST!"`. Pick the moment from one small tile, e.g. `ffmpeg -i clip -vf fps=1/4,scale=192:108,tile=5x3 -frames:v 1 t.jpg`, not from separate frames. Check one small combined preview.
 - After building, commit and push the mp4, then send it with SendUserFile.
 
 ### What the template does (do not change it)
