@@ -369,6 +369,12 @@ def wardrobe(loc, rot_z=0.0, door_open=0.0, open_keys=None):
         hinges.append(h)
     return hinges
 
+ROOM_FLOOR = 3.2   # upstairs room floor height (window sill at 3.9)
+
+def window_figure_loc(win, depth=0.95):
+    """Where the silhouette stands inside the upstairs room: left pane, standing on the room floor."""
+    return (win[0] - 0.12, win[1] + depth, ROOM_FLOOR)
+
 def farmhouse(loc=(0, 0, 0), window_lit=True):
     """Two-storey white clapboard farmhouse with gable roof, porch and an upstairs window."""
     x, y, z = loc
@@ -377,14 +383,19 @@ def farmhouse(loc=(0, 0, 0), window_lit=True):
     trim = mat_plain('house_trim', '#d0ccc0', 0.6)
     house = box((x, y, 3.0), (9.0, 7.0, 6.0), siding)
     tx, tz = x - 3.2 + 2 * 2.15, 4.6
-    cutter = box((tx, y - 3.0, tz), (0.9, 1.6, 1.4), siding)
-    cutter.hide_render = True; cutter.hide_viewport = True
-    bo = house.modifiers.new('win', 'BOOLEAN'); bo.operation = 'DIFFERENCE'; bo.object = cutter; bo.solver = 'EXACT'
+    # window hole through the front wall, then a real room behind it (floor 0.7 m below the sill)
+    room_wall = mat_plain('room_wall', '#6a5440', 0.8)
+    for nm, loc, size, m in (('win', (tx, y - 3.45, tz), (0.9, 0.7, 1.4), siding),
+                             ('room', (tx, y - 2.225, ROOM_FLOOR + 1.375), (2.6, 2.05, 2.75), room_wall)):
+        cutter = box(loc, size, m)
+        cutter.hide_render = True; cutter.hide_viewport = True
+        bo = house.modifiers.new(nm, 'BOOLEAN'); bo.operation = 'DIFFERENCE'; bo.object = cutter; bo.solver = 'EXACT'
+        try:
+            bo.material_mode = 'TRANSFER'
+        except Exception:
+            pass
     room_glow = mat_emit('room_glow', '#ffb46a', 1.3)
-    box((tx, y - 2.0, tz), (2.0, 0.05, 2.2), room_glow)                       # lit back wall of the room
-    for sx in (-1, 1):
-        box((tx + sx * 0.9, y - 2.75, tz), (0.05, 1.5, 2.2), mat_plain('room_wall', '#5a4a3a', 0.8))
-    box((tx, y - 2.75, tz - 0.75), (1.8, 1.5, 0.05), mat_plain('room_floor', '#3a2a1e', 0.8))
+    box((tx, y - 1.25, ROOM_FLOOR + 1.375), (2.6, 0.05, 2.75), room_glow)     # lit back wall of the room
     bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=6.6, radius2=0.0, depth=3.4, location=(x, y, 7.7), rotation=(0, 0, math.pi / 4))
     r = bpy.context.object; r.scale = (1.0, 0.82, 1.0); assign(r, roof)
     box((x + 2.6, y + 1.0, 8.6), (0.8, 0.8, 2.6), mat_plain('chimney', '#4a2e26', 0.8, noise=0.5, nscale=12))
@@ -460,7 +471,7 @@ def s_farm_ext(n, mh):
     light('POINT', (-0.9, 9.6, 2.6), 150, '#ffb060', size=0.15)          # porch light
     light('POINT', (win[0], win[1] + 1.2, win[2] + 0.6), 120, '#ffb060', size=0.3)
     # silhouette in the upstairs window (appears, then gone)
-    fig = entity((win[0], win[1] + 0.55, win[2] - 2.2), rot_z=0.0, scale=1.0, mh_dir=mh)
+    fig = entity(window_figure_loc(win), rot_z=0.0, scale=1.0, mh_dir=mh)
     objs = [o for o in bpy.data.objects if o.name.startswith('entity')]
     appear, gone = int(n * 0.28), int(n * 0.86)
     for o in objs:
@@ -477,9 +488,15 @@ def s_window_close(n, mh):
     light('AREA', (win[0], win[1] - 6, win[2] + 3), 400, '#8aa0c0', rot=(math.radians(60), 0, 0), size=6)
     light('POINT', (win[0], win[1] + 1.2, win[2] + 0.6), 120, '#ffb060', size=0.3)
     # curtain behind the glass, swaying
-    cur = plane((win[0] + 0.15, win[1] + 0.25, win[2]), (0.5, 1.4), mat_curtain('curtain', '#d8c8a0', 0.4), rot=(math.pi / 2, 0, 0), subdiv=4)
+    cur = plane((win[0] + 0.3, win[1] + 0.25, win[2]), (0.5, 1.4), mat_curtain('curtain', '#d8c8a0', 0.4), rot=(math.pi / 2, 0, 0), subdiv=4)
     displace(cur, 0.06, 0.3, seed=9)
-    keyframes(cur, 'location', [(1, cur.location.copy()), (n, Vector((win[0] + 0.05, win[1] + 0.2, win[2])))])
+    keyframes(cur, 'location', [(1, cur.location.copy()), (n, Vector((win[0] + 0.24, win[1] + 0.2, win[2])))])
+    # the same silhouette, standing in the left pane and slowly drifting toward the glass
+    fx, fy, fz = window_figure_loc(win, 1.1)
+    entity((fx + 0.17, fy, fz), rot_z=0.0, scale=1.0, mh_dir=mh)
+    objs = [o for o in bpy.data.objects if o.name.startswith('entity')]
+    for o in objs:
+        keyframes(o, 'location', [(1, o.location.copy()), (n, o.location + Vector((0, -0.3, 0)))])
     fog_box((0, 6, 3.0), (30, 30, 6.0), 0.02, '#8a98a8')
     camera([(1, (win[0] - 1.6, win[1] - 7.0, win[2] - 0.8), win), (n, (win[0] - 1.0, win[1] - 4.6, win[2] - 0.5), win)], lens=35)
 
