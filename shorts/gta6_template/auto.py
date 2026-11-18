@@ -39,7 +39,12 @@ def run(cmd):
 def list_top(period='LAST_DAY', n=15):
     q = ('query { game(name:"%s") { clips(first:100, criteria:{period:%s, sort:VIEWS_DESC}) { edges { node { '
          'slug title viewCount durationSeconds language broadcaster { login } } } } } }' % (GAME, period))
-    rows = [e['node'] for e in gql(q)['game']['clips']['edges']]
+    rows = []
+    for attempt in range(3):                                  # Twitch sometimes answers null; retry with a smaller page
+        g = gql(q.replace('first:100', 'first:%d' % (100 if attempt == 0 else 50)))
+        if g and g.get('game') and g['game'].get('clips'):
+            rows = [e['node'] for e in g['game']['clips']['edges']]
+            break
     rows = [r for r in rows if r['language'] == 'EN' and 12 <= r['durationSeconds'] <= 60][:n]
     for r in rows:
         print(f"{r['viewCount']:6d}v {r['durationSeconds']:3.0f}s {r['broadcaster']['login']:14s} {r['title'][:50]!r} https://clips.twitch.tv/{r['slug']}")
