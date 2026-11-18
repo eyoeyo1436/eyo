@@ -96,7 +96,7 @@ def main():
     ap.add_argument('clip'); ap.add_argument('out')
     ap.add_argument('--t', type=float, required=True); ap.add_argument('--text', required=True); ap.add_argument('--name', required=True)
     ap.add_argument('--cam'); ap.add_argument('--face-t', type=float); ap.add_argument('--cx', type=int, default=960)
-    ap.add_argument('--zoom', type=float, default=1.0); ap.add_argument('--cy', type=int, default=540)
+    ap.add_argument('--text-y', type=int, default=320); ap.add_argument('--shift', type=int, default=0); ap.add_argument('--zoom', type=float, default=1.0); ap.add_argument('--cy', type=int, default=540)
     a = ap.parse_args()
     parts = [p.strip().upper() for p in a.text.split('|')]
     full = grab(a.clip, a.t)
@@ -117,10 +117,14 @@ def main():
     lo = cw / 2 + ((x + w) if cam and x < sw / 2 else 0)            # keep the webcam/chat column out of the crop
     cx = int(min(max(a.cx * k - zx, lo if a.zoom == 1 else cw / 2), sw - cw / 2))
     g = src.crop((cx - cw // 2, 0, cx - cw // 2 + cw, sh)).resize((1080, 1920), Image.LANCZOS)
-    g = vignette(punch(g), 0.55); shade(g, 0, 820)
+    if a.shift:                                                   # push the picture down; dark blurred fill on top
+        top = g.crop((0, 0, 1080, 1920 - a.shift))
+        fill = g.resize((1080, 1920)).filter(ImageFilter.GaussianBlur(40))
+        g = fill; g.paste(top, (0, a.shift))
+    g = vignette(punch(g), 0.55); shade(g, 0, 820 + a.shift // 2)
     cv = Image.new('RGBA', (1080, 1920)); cv.paste(g)
     d = ImageDraw.Draw(cv)
-    lines(d, parts, 540, 230, 1000, [230, 200, 200], 'mm')
+    lines(d, parts, 540, a.text_y, 1000, [230, 200, 200], 'mm')
     if cam:
         ci = cam.resize((460, int(460 * cam.height / cam.width)), Image.LANCZOS)
         r = rounded(ci, 36, 10); paste_shadow(cv, r, (1080 - r.width - 34, 1880 - r.height - 150))
