@@ -14,4 +14,6 @@ The template adds only three things:
 - an animated Twitch logo and name badge at bottom centre;
 - a blurred end card with the avatar, "MORE GTA 6 VIDEOS", a subscribe click animation, then a fade to black.
 
+Raw horizontal Twitch clips first go through `shorts/gta6_template/verticalize.py`, which builds the same vertical layout as the approved clip: webcam on top, game below, word-by-word subtitles with a purple active-word box. Pick the best part of the clip with `--start`/`--end`.
+
 Do not touch the clip's own subtitles or edit. If the badge covers the clip's on-screen text, move it with `--badge-y`.

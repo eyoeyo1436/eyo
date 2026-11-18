@@ -11,7 +11,7 @@ What it adds (and nothing else):
 
 Usage:
   python3 make_short.py CLIP.mp4 OUT.mp4 --name jasontheween --hook "GTA 6 heists have begun!"
-Optional: --models DIR (Kokoro files, downloaded if missing), --avatar PNG, --cta "MORE GTA 6 VIDEOS",
+Optional: --hook-say TEXT (pronunciation), --models DIR (Kokoro files, downloaded if missing), --avatar PNG, --cta "MORE GTA 6 VIDEOS",
           --badge-y 1640 (badge centre line; move it if it covers the clip's own text), --keep WORKDIR
 """
 import argparse, math, os, re, shutil, subprocess, sys, tempfile, urllib.request
@@ -67,11 +67,13 @@ def syllables(word):
     w = ''.join(NUM.get(ch, ch) for ch in w)
     w = re.sub(r'[^a-z]', '', w)
     n = len(re.findall(r'[aeiouy]+', w))
+    if n == 0:
+        return len(w)                                     # letters read out, e.g. xQc
     if w.endswith('e') and n > 1 and not w.endswith('le'):
         n -= 1
     return max(1, n)
 
-def make_voice(text, models, work):
+def make_voice(text, models, work, say=None):
     os.makedirs(models, exist_ok=True)
     for f in ('kokoro-v1.0.onnx', 'voices-v1.0.bin'):
         p = os.path.join(models, f)
@@ -81,7 +83,7 @@ def make_voice(text, models, work):
     from kokoro_onnx import Kokoro
     k = Kokoro(os.path.join(models, 'kokoro-v1.0.onnx'), os.path.join(models, 'voices-v1.0.bin'))
     v = 0.62 * k.get_voice_style('am_michael') + 0.38 * k.get_voice_style('am_onyx')
-    a, sr = k.create(text, voice=v, speed=1.1, lang='en-us')
+    a, sr = k.create(say or text, voice=v, speed=1.1, lang='en-us')
     nz = np.where(np.abs(a) > 0.01)[0]
     a = a[max(0, nz[0] - 200): nz[-1] + 2400]
     raw = os.path.join(work, 'hook_raw.wav'); sf.write(raw, a, sr)
@@ -334,6 +336,7 @@ def main():
     ap.add_argument('clip'); ap.add_argument('out')
     ap.add_argument('--name', required=True, help='Twitch name shown next to the logo')
     ap.add_argument('--hook', default='GTA 6 heists have begun!', help='hook line (spoken and shown)')
+    ap.add_argument('--hook-say', default=None, help='how the voice should say the hook, if different (e.g. "X-Q-C" for xQc)')
     ap.add_argument('--cta', default='MORE GTA 6 VIDEOS')
     ap.add_argument('--avatar', default=os.path.join(ASSETS, 'avatar.png'))
     ap.add_argument('--badge-y', type=int, default=1640, help='badge centre line in the 1080x1920 frame')
@@ -344,7 +347,7 @@ def main():
     work = a.keep or tempfile.mkdtemp(prefix='gta6short_')
     os.makedirs(work, exist_ok=True)
     clip_dur = probe_duration(a.clip)
-    hook_wav, voice_len, words = make_voice(a.hook, a.models, work)
+    hook_wav, voice_len, words = make_voice(a.hook, a.models, work, a.hook_say)
     ov = Overlay(a, words, voice_len, clip_dur)
     print(f'clip {clip_dur:.2f}s, hook {voice_len:.2f}s, final {ov.total:.2f}s', flush=True)
     ov.render(os.path.join(work, 'ova'), os.path.join(work, 'ovb'))
