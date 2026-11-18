@@ -5,6 +5,7 @@
 Writes OUT_PREFIX_vertical.png (1080x1920, Shorts cover) and OUT_PREFIX_16x9.png (1280x720).
   --t      moment for the game picture; --cx its horizontal centre for the vertical crop
   --text   lines separated by |; the last line and any number are yellow
+  --zoom   zoom in (e.g. 1.25) around --cx/--cy to cut the stream's own captions and overlays at the edges
   --cam    webcam rectangle in the source (streamer reaction inset); --face-t the moment for it (default --t)
 """
 import argparse, os, re, subprocess, tempfile
@@ -95,11 +96,17 @@ def main():
     ap.add_argument('clip'); ap.add_argument('out')
     ap.add_argument('--t', type=float, required=True); ap.add_argument('--text', required=True); ap.add_argument('--name', required=True)
     ap.add_argument('--cam'); ap.add_argument('--face-t', type=float); ap.add_argument('--cx', type=int, default=960)
+    ap.add_argument('--zoom', type=float, default=1.0); ap.add_argument('--cy', type=int, default=540)
     a = ap.parse_args()
     parts = [p.strip().upper() for p in a.text.split('|')]
-    src = grab(a.clip, a.t)
+    full = grab(a.clip, a.t)
+    k = full.size[0] / 1920
+    # optional zoom: drop the stream's caption strip / overlays at the edges (cy = vertical centre, 1080p units)
+    zw, zh = int(full.size[0] / a.zoom), int(full.size[1] / a.zoom)
+    zx = int(min(max(a.cx * k - zw / 2, 0), full.size[0] - zw)) if a.zoom > 1 else 0
+    zy = int(min(max(a.cy * k - zh / 2, 0), full.size[1] - zh))
+    src = full.crop((zx, zy, zx + zw, zy + zh)) if a.zoom > 1 else full
     sw, sh = src.size
-    k = sw / 1920
     cam = None
     if a.cam:
         x, y, w, h = [int(v) for v in a.cam.split(',')]
@@ -108,7 +115,7 @@ def main():
     # ---------- vertical
     cw = int(sh * 9 / 16)
     lo = cw / 2 + ((x + w) if cam and x < sw / 2 else 0)            # keep the webcam/chat column out of the crop
-    cx = int(min(max(a.cx * k, lo), sw - cw / 2))
+    cx = int(min(max(a.cx * k - zx, lo if a.zoom == 1 else cw / 2), sw - cw / 2))
     g = src.crop((cx - cw // 2, 0, cx - cw // 2 + cw, sh)).resize((1080, 1920), Image.LANCZOS)
     g = vignette(punch(g), 0.55); shade(g, 0, 820)
     cv = Image.new('RGBA', (1080, 1920)); cv.paste(g)
