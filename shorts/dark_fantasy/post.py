@@ -13,7 +13,7 @@ from PIL import Image, ImageFilter
 
 OW, OH, FPS = 1080, 1920, 30
 DURATION = 15.0
-XFADE = 0.5
+XFADE = 0.4
 SHOTS = ['sky', 'path', 'hall', 'sorcerer', 'hoard']
 
 # per-shot particle recipe: (kind, count, colours)

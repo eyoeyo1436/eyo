@@ -153,7 +153,7 @@ def mat_gold(name='gold', base='#ffb32a', rough=0.22, scale=20.0):
     v = coords(nt, 'Object', (scale, scale, scale))
     nz = node(nt, 'ShaderNodeTexNoise', Detail=15.0, Roughness=0.75, Distortion=0.5)
     link(nt, v, nz.inputs['Vector'])
-    col = ramp(nt, nz.outputs['Factor'], [(0.3, '#7a3c00'), (0.5, base), (0.75, '#fff0a0')])
+    col = ramp(nt, nz.outputs['Factor'], [(0.3, '#8a5a08'), (0.5, base), (0.75, '#fff6c0')])
     p = principled(nt, col, rough=rough, metal=1.0)
     link(nt, bump(nt, nz.outputs['Factor'], 0.7, 0.05), p.inputs['Normal'])
     link(nt, p.outputs[0], out.inputs['Surface'])
@@ -576,13 +576,13 @@ def build_sorcerer(n):
 def build_hoard(n):
     """The dragon's hoard: mountains of gold, a crowned skull, and red eyes opening in the dark."""
     world_sky(nebula=('#000000', '#020414', '#0a1050', '#1a0a40'), swirl=1.0, strength=0.25)
-    gold = mat_gold('hoard_gold', '#ffcf3a', 0.18)
-    displaced_rock((0, 6, -2.2), 5, gold, scale=(2.2, 1.6, 0.7), strength=0.6, noise=0.5, seed=31)
+    gold = mat_gold('hoard_gold', '#ffd84a', 0.18, scale=6.0)
+    displaced_rock((0, 6, -2.2), 5, gold, scale=(2.2, 1.6, 0.7), strength=1.0, noise=0.25, seed=31)
     rnd = random.Random(4)
     bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=0.12, depth=0.025)
     coin_proto = bpy.context.object
     assign(coin_proto, gold)
-    for k in range(260):  # loose coins on the hoard
+    for k in range(420):  # loose coins on the hoard
         a = rnd.uniform(0, 2 * math.pi); d = rnd.uniform(0, 6)
         o = coin_proto.copy(); bpy.context.collection.objects.link(o)
         o.location = (math.cos(a) * d * 1.4, 4 + math.sin(a) * d * 0.7, max(0.0, 1.6 - d * 0.32) + rnd.uniform(-0.05, 0.1))
@@ -623,15 +623,17 @@ def build_hoard(n):
     e = dragon_eye.node_tree.nodes['Emission']
     e.inputs['Strength'].default_value = 0.0
     e.inputs['Strength'].keyframe_insert('default_value', frame=int(n * 0.62))
-    e.inputs['Strength'].default_value = 80.0
+    e.inputs['Strength'].default_value = 16.0
     e.inputs['Strength'].keyframe_insert('default_value', frame=int(n * 0.72))
-    for side in (-1, 1):
-        sphere((side * 2.2, 14, 6.5), 0.55, dragon_eye, scale=(1.8, 0.5, 0.55))
+    slit = mat_glossy('slit', '#000000', 0.9, 0.0)
+    for side in (-1, 1):   # in front of the dragon's bulk so they read in frame
+        sphere((side * 2.0, 11.6, 6.2), 0.62, dragon_eye, scale=(1.9, 0.45, 0.62))
+        box((side * 2.0, 11.3, 6.2), (0.1, 0.05, 0.62), slit)
     scale_m = mat_stone('dragon_scales', ('#01010a', '#0a1270', '#2a3ae0', '#6a7aff'), scale=6, blocks=14, bump_s=1.2)
     displaced_rock((0, 16, 5), 4.5, scale_m, scale=(2.0, 0.8, 1.2), strength=0.8, noise=0.6, seed=40)
     point_light((0, 1, 4), '#ffe2a0', 1100, 1.5)
     area_light((0, 20, 12), '#3a5aff', 2500, 10, rot=(-0.9, 0, 0))   # rim light reveals the dragon's bulk
-    point_light((0, 10, 6), '#ff2030', 300, 2.0)
+    point_light((0, 9.5, 6.2), '#ff3a10', 160, 1.5)
     area_light((0, -4, 8), '#2a3aff', 600, 8, rot=(0.6, 0, 0))
     camera([(1, (0, -6.5, 2.6), (0, 6, 2.6)), (n, (0, -3.8, 2.4), (0, 8, 3.4))], lens=26)
 
