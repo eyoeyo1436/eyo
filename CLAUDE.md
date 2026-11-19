@@ -29,5 +29,5 @@ These rules exist because the user asked to spend as few credits as possible.
 - **Horizontal clips:** these get the approved vertical layout:
   - the webcam (found automatically from the streamer's face) on top;
   - the game below;
-  - word-by-word subtitles with a purple box on the active word.
+  - no subtitles of our own by default (the streams already carry captions); `--subs` turns them on.
 - **Vertical clips:** used as they are; the clip's own subtitles and edit are never touched.

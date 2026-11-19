@@ -188,6 +188,7 @@ def main():
     ap.add_argument('--start', type=float); ap.add_argument('--end', type=float); ap.add_argument('--cam')
     ap.add_argument('--badge-y', type=int); ap.add_argument('--out')
     ap.add_argument('--fix', action='append', default=[])
+    ap.add_argument('--subs', action='store_true', help='burn our word subtitles (off: the stream already has captions)')
     a = ap.parse_args()
     if a.list:
         return list_top(a.period)
@@ -228,6 +229,8 @@ def main():
             vert = os.path.join(d, 'vertical.mp4')
             cmd = [sys.executable, os.path.join(HERE, 'verticalize.py'), f, vert, '--start', str(start), '--end', str(end), '--words', wp]
             cmd += ['--cam', ','.join(map(str, cam))] if cam else ['--no-cam']
+            if not a.subs:
+                cmd += ['--no-subs']
             for fx in a.fix:
                 cmd += ['--fix', fx]
             run(cmd)

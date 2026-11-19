@@ -96,7 +96,7 @@ def main():
     ap.add_argument('--cam', default=None); ap.add_argument('--no-cam', action='store_true'); ap.add_argument('--start', type=float, default=0.0); ap.add_argument('--end', type=float, default=None)
     ap.add_argument('--game-cx', type=int, default=960); ap.add_argument('--cam-split', type=int, default=680)
     ap.add_argument('--asr-model', default=os.path.join(HERE, 'models', 'sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8'))
-    ap.add_argument('--words', default=None); ap.add_argument('--fix', action='append', default=[])
+    ap.add_argument('--words', default=None); ap.add_argument('--no-subs', action='store_true'); ap.add_argument('--fix', action='append', default=[])
     a = ap.parse_args()
     work = tempfile.mkdtemp(prefix='vert_')
     probe = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
@@ -165,10 +165,12 @@ def main():
               f"[b]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},gblur=sigma=30,eq=brightness=-0.12[bg];"
               f"[g]crop={sh}:{sh}:{max(0, min(sw - sh, int(a.game_cx * sc - sh / 2)))}:0,scale={W}:{W}:flags=lanczos[game];"
               f"[bg][game]overlay=0:{(H - W) // 2 - 80},setsar=1[st];")
-    if sh <= sw:
+    if sh <= sw and not a.no_subs:
         fc += f"[1:v]fps={FPS},format=rgba[sub];[st][sub]overlay=eof_action=pass:format=auto[v];"
+    elif sh <= sw:
+        fc += "[st]null[v];"
     fc += f"[0:a]atrim={a.start}:{end},asetpts=PTS-STARTPTS,loudnorm=I=-13:TP=-1.5:LRA=11,aresample=48000[a]"
-    inputs = ['-i', a.clip] + (['-f', 'concat', '-safe', '0', '-i', os.path.join(work, 'subs.txt')] if sh <= sw else [])
+    inputs = ['-i', a.clip] + (['-f', 'concat', '-safe', '0', '-i', os.path.join(work, 'subs.txt')] if sh <= sw and not a.no_subs else [])
     subprocess.run(['ffmpeg', '-v', 'error', '-y'] + inputs + [
                     '-filter_complex', fc, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16',
                     '-pix_fmt', 'yuv420p', '-r', str(FPS), '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', f'{dur:.3f}', a.out], check=True)
